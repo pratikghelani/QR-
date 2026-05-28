@@ -211,17 +211,14 @@
     const value = String(decodedText || "").trim();
     if (!value) return;
 
-    const now = Date.now();
     const allowDup = ui.allowDuplicates && ui.allowDuplicates.checked;
-    const lastTime = state.lastSeenByCode.get(value);
-    if (!allowDup) {
-      if (lastTime && now - lastTime < DUPLICATE_WINDOW_MS) {
-        // Suppress rapid duplicate scans silently for smoother UX
-        return;
-      }
+    const alreadyScanned = state.scans.some((scan) => scan.value === value);
+    if (!allowDup && alreadyScanned) {
+      alert("Duplicate QR code detected. This code has already been scanned.");
+      return;
     }
 
-    // Record the last seen time for this code
+    const now = Date.now();
     state.lastSeenByCode.set(value, now);
 
     const stockType = ui.stockType.value;

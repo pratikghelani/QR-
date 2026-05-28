@@ -50,6 +50,10 @@
                   <option value="IN">Stock IN</option>
                   <option value="OUT">Stock OUT</option>
                 </select>
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="allowDuplicates">
+                  <label class="form-check-label small text-secondary" for="allowDuplicates">Allow duplicate scans</label>
+                </div>
               </div>
 
               <div id="qr-reader" class="rounded overflow-hidden mb-3"></div>
@@ -57,6 +61,7 @@
               <div class="d-grid d-sm-flex gap-2">
                 <button id="startBtn" class="btn btn-success btn-lg flex-fill">Start Scanner</button>
                 <button id="stopBtn" class="btn btn-outline-danger btn-lg flex-fill" disabled>Stop Scanner</button>
+                <button id="allowCameraBtn" class="btn btn-outline-primary btn-lg flex-fill d-none">Allow Camera</button>
               </div>
             </div>
           </div>

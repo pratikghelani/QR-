@@ -23,7 +23,9 @@
     latestTime: document.getElementById("latestTime"),
     lastScanShort: document.getElementById("lastScanShort"),
     successPulse: document.getElementById("successPulse"),
-    networkBadge: document.getElementById("networkBadge")
+    networkBadge: document.getElementById("networkBadge"),
+    allowDuplicates: document.getElementById("allowDuplicates"),
+    allowCameraBtn: document.getElementById("allowCameraBtn")
   };
 
   const state = {
@@ -31,7 +33,8 @@
     scanner: null,
     isScanning: false,
     lastSeenByCode: new Map(),
-    audioContext: null
+    audioContext: null,
+    hasCameraPermission: false
   };
 
   function init() {
@@ -39,6 +42,7 @@
     renderAll();
     wireEvents();
     updateNetworkBadge();
+    checkCameraPermission();
   }
 
   function wireEvents() {
@@ -48,6 +52,9 @@
     ui.exportBtn.addEventListener("click", exportToCsv);
     ui.searchInput.addEventListener("input", renderTable);
     ui.filterType.addEventListener("change", renderTable);
+    if (ui.allowCameraBtn) {
+      ui.allowCameraBtn.addEventListener("click", requestCameraAccess);
+    }
     window.addEventListener("online", updateNetworkBadge);
     window.addEventListener("offline", updateNetworkBadge);
   }
@@ -78,6 +85,14 @@
     }
 
     try {
+      if (!state.hasCameraPermission) {
+        const granted = await requestCameraAccess();
+        if (!granted) {
+          alert("Unable to access camera. Please allow camera permissions and retry.");
+          return;
+        }
+      }
+
       const hasCamera = await Html5Qrcode.getCameras();
       if (!hasCamera || hasCamera.length === 0) {
         alert("No camera device found.");
@@ -85,7 +100,7 @@
       }
     } catch (error) {
       console.error("Camera list error:", error);
-      alert("Unable to access camera list. Please allow permissions.");
+      alert("Unable to access camera list. Please allow camera permission for this site.");
       return;
     }
 
@@ -141,14 +156,72 @@
     ui.scannerStatus.textContent = active ? "Scanner Running" : "Scanner Stopped";
   }
 
+  async function checkCameraPermission() {
+    state.hasCameraPermission = false;
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const status = await navigator.permissions.query({ name: "camera" });
+        state.hasCameraPermission = status.state === "granted";
+        status.onchange = () => checkCameraPermission();
+      } catch (err) {
+        state.hasCameraPermission = false;
+      }
+    }
+    updateCameraUi();
+  }
+
+  async function requestCameraAccess() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Camera access is not supported in this browser.");
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((track) => track.stop());
+      state.hasCameraPermission = true;
+      updateCameraUi();
+      return true;
+    } catch (error) {
+      console.error("Camera access denied or failed:", error);
+      state.hasCameraPermission = false;
+      updateCameraUi();
+      return false;
+    }
+  }
+
+  function updateCameraUi() {
+    if (!ui.allowCameraBtn) return;
+    if (state.hasCameraPermission) {
+      ui.allowCameraBtn.classList.add("d-none");
+      ui.startBtn.disabled = false;
+      ui.allowCameraBtn.textContent = "Camera Allowed";
+      ui.allowCameraBtn.classList.remove("btn-outline-primary");
+      ui.allowCameraBtn.classList.add("btn-success");
+    } else {
+      ui.allowCameraBtn.classList.remove("d-none");
+      ui.startBtn.disabled = true;
+      ui.allowCameraBtn.textContent = "Allow Camera";
+      ui.allowCameraBtn.classList.remove("btn-success");
+      ui.allowCameraBtn.classList.add("btn-outline-primary");
+    }
+  }
+
   function onScanSuccess(decodedText) {
     const value = String(decodedText || "").trim();
     if (!value) return;
 
     const now = Date.now();
+    const allowDup = ui.allowDuplicates && ui.allowDuplicates.checked;
     const lastTime = state.lastSeenByCode.get(value);
-    if (lastTime && now - lastTime < DUPLICATE_WINDOW_MS) return;
+    if (!allowDup) {
+      if (lastTime && now - lastTime < DUPLICATE_WINDOW_MS) {
+        // Suppress rapid duplicate scans silently for smoother UX
+        return;
+      }
+    }
 
+    // Record the last seen time for this code
     state.lastSeenByCode.set(value, now);
 
     const stockType = ui.stockType.value;
